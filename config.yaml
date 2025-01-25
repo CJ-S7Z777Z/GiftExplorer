@@ -1,15 +1,11 @@
 collections:
-  - name: PreciousPeach
+  - name: HomemadeCake
     start_id: 1
-    end_id: 2649
-  - name: AnotherCollection
-    start_id: 100
-    end_id: 500
+    end_id: 2
 
 yandex_cloud:
   access_key_id: "YCAJEEy-gpApVtzVYl6HdB-hC"
   secret_access_key: "YCNyCzlGNBz1yP05vPM0SBB70ba4QB94T_iGbZlo"
   bucket_name: "ai-ru"
-  main_folder: "main_pages"
   gifts_folder: "gifts"
   json_folder: "json_data"
