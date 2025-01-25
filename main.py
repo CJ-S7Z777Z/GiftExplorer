@@ -8,7 +8,6 @@ from botocore.exceptions import NoCredentialsError, ClientError
 import yaml
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import time
-import threading
 
 def load_config(config_path="config.yaml"):
     """Загружает конфигурацию из YAML файла и переменных окружения."""
@@ -20,6 +19,7 @@ def load_config(config_path="config.yaml"):
     config['yandex_cloud']['secret_access_key'] = os.getenv('YC_SECRET_ACCESS_KEY', config['yandex_cloud']['secret_access_key'])
     config['yandex_cloud']['bucket_name'] = os.getenv('YC_BUCKET_NAME', config['yandex_cloud']['bucket_name'])
     config['yandex_cloud']['region'] = os.getenv('YC_REGION', config['yandex_cloud'].get('region', 'ru-central1'))
+    config['yandex_cloud']['main_folder'] = os.getenv('YC_MAIN_FOLDER', config['yandex_cloud'].get('main_folder', ''))
     config['yandex_cloud']['gifts_folder'] = os.getenv('YC_GIFTS_FOLDER', config['yandex_cloud'].get('gifts_folder', 'gifts'))
     config['yandex_cloud']['json_folder'] = os.getenv('YC_JSON_FOLDER', config['yandex_cloud'].get('json_folder', 'json_data'))
     
@@ -395,7 +395,7 @@ def generate_main_page(gift_data, collection_name, output_file):
         f.write(full_html)
     print(f"Главная страница создана: {output_file}")
 
-def generate_gift_page(gift_data, collection_name, json_folder='json', gifts_folder='gifts'):
+def generate_gift_page(gift_data, collection_name, json_folder='json_data', gifts_folder='gifts'):
     """Генерирует отдельную страницу для одного подарка и сохраняет JSON."""
     gift_id = gift_data.get('gift_id')
     if not gift_id:
@@ -611,8 +611,8 @@ def generate_gift_page(gift_data, collection_name, json_folder='json', gifts_fol
 def generate_main_page_parallel(gift_data, collection_name, output_file, s3_client, bucket_name, main_folder):
     """Генерирует главную страницу и загружает ее в Yandex Cloud Storage."""
     generate_main_page(gift_data, collection_name, output_file)
-    # Загрузка главной страницы в YCS
-    upload_file_to_ycs(s3_client, output_file, bucket_name, f"{main_folder}/{os.path.basename(output_file)}")
+    # Загрузка главной страницы в YCS без папки
+    upload_file_to_ycs(s3_client, output_file, bucket_name, os.path.basename(output_file))
 
 def generate_gift_page_parallel(gift_data, collection_name, json_folder, gifts_folder, s3_client, bucket_name, gifts_remote_folder, json_remote_folder):
     """Генерирует страницу подарка, сохраняет JSON и загружает их в YCS."""
@@ -664,8 +664,7 @@ def process_collection(collection, s3_client, bucket_name, main_folder, gifts_fo
             try:
                 gift_data = future.result()
                 if gift_data and "error" not in gift_data:
-                    # Добавляем gift_id для дальнейшего использования
-                    gift_data['gift_id'] = gift_id
+                    gift_data['gift_id'] = int(key.split('_')[-1])
                     existing_data[key] = gift_data
                     # Генерация и загрузка страницы и JSON
                     executor.submit(
@@ -698,7 +697,7 @@ def main():
     yc_config = config['yandex_cloud']
     s3_client = initialize_s3_client(yc_config)
     bucket_name = yc_config['bucket_name']
-    main_folder = yc_config.get('main_folder', 'main_pages')
+    main_folder = yc_config.get('main_folder', '')
     gifts_folder = yc_config.get('gifts_folder', 'gifts')
     json_folder = yc_config.get('json_folder', 'json_data')
     
