@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Коллекции Plush Pepe</title>
+  <link rel="stylesheet" href="./global.css" />
+  <link
+    rel="stylesheet"
+    href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;500;600&display=swap"
+  />
+  <style>
+    /* Общие стили */
+    body {
+      margin: 0;
+      font-family: 'Rubik', sans-serif;
+      background-color: #161616;
+      color: #fff;
+    }
+
+    /* Хедер с поиском и сортировкой */
+    .header {
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      background-color: #0c0c0c;
+    }
+
+    .controls {
+      width: 100%;
+      max-width: 300px;
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      margin-bottom: 20px;
+      gap: 10px;
+    }
+
+    /* Тёмная тема для поискового поля и сортировки */
+    .controls input,
+    .controls select {
+      padding: 10px;
+      font-size: 16px;
+      margin: 5px 0;
+      border: none;
+      border-radius: 5px;
+      background-color: #2c2c2c;
+      color: #fff;
+      outline: none;
+    }
+
+    .controls input::placeholder {
+      color: #ccc;
+    }
+
+    .controls select {
+      appearance: none;
+      background-image: url('data:image/svg+xml;charset=US-ASCII,%3Csvg width="10" height="5" xmlns="http://www.w3.org/2000/svg"%3E%3Cpath d="M0 0l5 5 5-5z" fill="%23ffffff"/%3E%3C/svg%3E');
+      background-repeat: no-repeat;
+      background-position: right 10px center;
+      background-size: 10px 5px;
+      cursor: pointer;
+    }
+
+    /* Контейнер для коллекций */
+    .collection-container {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr); /* Всегда 2 плашки в ряду */
+      gap: 20px;
+      padding: 20px;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    /* Карточка коллекции */
+    .collection-card {
+      background-color: #1e1e1e;
+      border-radius: 10px;
+      overflow: hidden;
+      text-decoration: none;
+      color: #fff;
+      transition: transform 0.3s, box-shadow 0.3s;
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+    }
+
+    .collection-card:hover {
+      transform: translateY(-5px);
+      box-shadow: 0 10px 20px rgba(0,0,0,0.5);
+    }
+
+    .collection-image {
+      width: 100%;
+      padding-top: 100%; /* Соотношение сторон 1:1 */
+      background-size: cover;
+      background-position: center;
+    }
+    .collection-info {
+      padding: 15px;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+
+    .collection-info h3 {
+      margin: 0 0 10px 0;
+      font-size: 18px;
+    }
+
+    .collection-info p {
+      margin: 0;
+      font-size: 14px;
+      color: #ccc;
+    }
+
+    /* Футер */
+    .footer {
+      padding: 20px;
+      background-color: #0e0e0e;
+      text-align: center;
+      font-size: 14px;
+      position: relative;
+      cursor: pointer;
+    }
+
+    .footer .made-by {
+      margin-bottom: 5px;
+    }
+
+    .footer .neztrix {
+      font-size: 16px;
+      font-weight: 600;
+      color: rgb(255, 255, 255); /* Замените 'red' на нужный вам цвет */
+    }
+
+    .footer img.vector-icon {
+      width: 50px;
+      height: 50px;
+      position: absolute;
+      bottom: 20px;
+      right: 20px;
+    }
+
+    /* Мобильные стили */
+    @media (max-width: 600px) {
+      .controls {
+        flex-direction: column;
+        align-items: stretch;
+      }
+
+      .controls input,
+      .controls select {
+        width: 100%;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="iphone-16-pro-max-1">
+    <!-- Хедер с поиском и сортировкой -->
+    <div class="header">
+      <div class="controls">
+        <input type="text" id="searchInput" placeholder="Поиск коллекции..." />
+        <select id="sortSelect">
+          <option value="default">Сортировка по</option>
+          <option value="asc">Количество элементов: от меньшего к большему</option>
+          <option value="desc">Количество элементов: от большего к меньшему</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- Контейнер коллекций -->
+    <div class="collection-container" id="collectionContainer">
+      <!-- Пример карточки коллекции -->
+      <a href="PlushPepe.html" class="collection-card" data-items="2786">
+        <div class="collection-image" style="background-image: url('./public/plushpepe1-1@2x.png');"></div>
+        <div class="collection-info">
+          <h3>Plush Pepe Collection</h3>
+          <p>2786 items</p>
+        </div>
+      </a>
+
+      <a href="SantaHat.html" class="collection-card" data-items="25265">
+        <div class="collection-image" style="background-image: url('./public/plushpepe1-11@2x.png');"></div>
+        <div class="collection-info">
+          <h3>Santa Hat Collection</h3>
+          <p>25 265 items</p>
+        </div>
+      </a>
+
+      <a href="TrappedHeart.html" class="collection-card" data-items="17987">
+        <div class="collection-image" style="background-image: url('./public/plushpepe1-12@2x.png');"></div>
+        <div class="collection-info">
+          <h3>Trapped Hearts Collection</h3>
+          <p>17 987 items</p>
+        </div>
+      </a>
+
+      <a href="PerfumeBottle.html" class="collection-card" data-items="3157">
+        <div class="collection-image" style="background-image: url('./public/plushpepe1-13@2x.png');"></div>
+        <div class="collection-info">
+          <h3>Perfume Bottles Collection</h3>
+          <p>3 157 items</p>
+        </div>
+      </a>
+
+      <a href="HexPot.html" class="collection-card" data-items="25157">
+        <div class="collection-image" style="background-image: url('./public/plushpepe1-14@2x.png');"></div>
+        <div class="collection-info">
+          <h3>Hex Pots Collection</h3>
+          <p>25 157 items</p>
+        </div>
+      </a>
+
+      <a href="ScaredCat.html" class="collection-card" data-items="17655">
+        <div class="collection-image" style="background-image: url('./public/plushpepe1-15@2x.png');"></div>
+        <div class="collection-info">
+          <h3>Scared Cats Collection</h3>
+          <p>17 655 items</p>
+        </div>
+      </a>
+
+      <a href="kissedfrog,html" class="collection-card" data-items="12832">
+        <div class="collection-image" style="background-image: url('./public/plushpepe1-16@2x.png');"></div>
+        <div class="collection-info">
+          <h3>Kissed Frogs Collection</h3>
+          <p>12 832 items</p>
+        </div>
+      </a>
+
+      <a href="eternalrose.html" class="collection-card" data-items="12066">
+        <div class="collection-image" style="background-image: url('./public/plushpepe1-17@2x.png');"></div>
+        <div class="collection-info">
+          <h3>Eternal Roses Collection</h3>
+          <p>12 066 items</p>
+        </div>
+      </a>
+
+      <a href="spicedwine.html" class="collection-card" data-items="27925">
+        <div class="collection-image" style="background-image: url('./public/plushpepe1-18@2x.png');"></div>
+        <div class="collection-info">
+          <h3>Spiced Wines Collection</h3>
+          <p>27 925 items</p>
+        </div>
+      </a>
+
+      <a href="preciouspeache.html" class="collection-card" data-items="2645">
+        <div class="collection-image" style="background-image: url('./public/plushpepe1-19@2x.png');"></div>
+        <div class="collection-info">
+          <h3>Precious Peaches Collection</h3>
+          <p>2 645 items</p>
+        </div>
+      </a>
+
+      <a href="sharptongue.html" class="collection-card" data-items="6202">
+        <div class="collection-image" style="background-image: url('./public/plushpepe1-110@2x.png');"></div>
+        <div class="collection-info">
+          <h3>Sharp Tongues Collection</h3>
+          <p>6 202 items</p>
+        </div>
+      </a>
+
+      <a href="magicpotion.html" class="collection-card" data-items="4611">
+        <div class="collection-image" style="background-image: url('./public/plushpepe1-111@2x.png');"></div>
+        <div class="collection-info">
+          <h3>Magic Potions Collection</h3>
+          <p>4 611 items</p>
+        </div>
+      </a>
+
+      <a href="berryboxes.html" class="collection-card" data-items="14091">
+        <div class="collection-image" style="background-image: url('./public/plushpepe1-112@2x.png');"></div>
+        <div class="collection-info">
+          <h3>Berry Boxes Collection</h3>
+          <p>14 091 items</p>
+        </div>
+      </a>
+
+      <a href="signetring.html" class="collection-card" data-items="11180">
+        <div class="collection-image" style="background-image: url('./public/plushpepe1-113@2x.png');"></div>
+        <div class="collection-info">
+          <h3>Signet Ring Collection</h3>
+          <p>11 180 items</p>
+        </div>
+      </a>
+
+      <a href="durovscap.html" class="collection-card" data-items="4586">
+        <div class="collection-image" style="background-image: url('./public/plushpepe1-114@2x.png');"></div>
+        <div class="collection-info">
+          <h3>Durov’s Cap Collection</h3>
+          <p>4 586 items</p>
+        </div>
+      </a>
+
+      <a href="spyagaric.html" class="collection-card" data-items="63473">
+        <div class="collection-image" style="background-image: url('./public/plushpepe1-115@2x.png');"></div>
+        <div class="collection-info">
+          <h3>Spy Agarics Collection</h3>
+          <p>63 473 items</p>
+        </div>
+      </a>
+
+      <a href="evileye.html" class="collection-card" data-items="35864">
+        <div class="collection-image" style="background-image: url('./public/plushpepe1-116@2x.png');"></div>
+        <div class="collection-info">
+          <h3>Evil Eyes Collection</h3>
+          <p>35 864 items</p>
+        </div>
+      </a>
+
+      <a href="skullflower.html" class="collection-card" data-items="14842">
+        <div class="collection-image" style="background-image: url('./public/plushpepe1-117@2x.png');"></div>
+        <div class="collection-info">
+          <h3>Skull Flowers Collection</h3>
+          <p>14 842 items</p>
+        </div>
+      </a>
+
+      <a href="vintagecigar.html" class="collection-card" data-items="14150">
+        <div class="collection-image" style="background-image: url('./public/plushpepe1-118@2x.png');"></div>
+        <div class="collection-info">
+          <h3>Vintage Cigars Collection</h3>
+          <p>14 150 items</p>
+        </div>
+      </a>
+
+      <a href="homemadecake.html" class="collection-card" data-items="72120">
+        <div class="collection-image" style="background-image: url('./public/plushpepe1-119@2x.png');"></div>
+        <div class="collection-info">
+          <h3>Homemade Cakes Collection</h3>
+          <p>72 120 items</p>
+        </div>
+      </a>
+
+      <a href="jellybunny.html" class="collection-card" data-items="29786">
+        <div class="collection-image" style="background-image: url('./public/plushpepe1-120@2x.png');"></div>
+        <div class="collection-info">
+          <h3>Jelly Bunnies Collection</h3>
+          <p>29 786 items</p>
+        </div>
+      </a>
+    </div>
+
+    <!-- Футер -->
+    <div class="footer">
+      <div class="made-by">Made by:</div>
+      <a class="neztrix" href="https://t.me/neztrix">
+      <div>NEZTRIX</div>
+      </a>
+      <img class="vector-icon" alt="Иконка" src="./public/vector-1.svg" />
+    </div>
+  </div>
+
+  <!-- Скрипты -->
+  <script>
+    // Поиск коллекций по названию
+    const searchInput = document.getElementById('searchInput');
+    const collectionContainer = document.getElementById('collectionContainer');
+    const collectionCards = Array.from(collectionContainer.getElementsByClassName('collection-card'));
+
+    searchInput.addEventListener('input', function() {
+      const query = this.value.toLowerCase();
+      collectionCards.forEach(card => {
+        const title = card.querySelector('h3').textContent.toLowerCase();
+        if (title.includes(query)) {
+          card.style.display = 'flex';
+        } else {
+          card.style.display = 'none';
+        }
+      });
+    });
+
+    // Сортировка коллекций по количеству элементов
+    const sortSelect = document.getElementById('sortSelect');
+
+    sortSelect.addEventListener('change', function() {
+      const option = this.value;
+      if (option === 'asc') {
+        sortCollections(true);
+      } else if (option === 'desc') {
+        sortCollections(false);
+      } else {
+        // Сброс к исходному порядку
+        resetSort();
+      }
+    });
+
+    // Функция сортировки
+    function sortCollections(ascending = true) {
+      const sorted = collectionCards.sort((a, b) => {
+        const aItems = parseInt(a.getAttribute('data-items'));
+        const bItems = parseInt(b.getAttribute('data-items'));
+        return ascending ? aItems - bItems : bItems - aItems;
+      });
+
+      // Очистка контейнера и добавление отсортированных карточек
+      collectionContainer.innerHTML = '';
+      sorted.forEach(card => collectionContainer.appendChild(card));
+    }
+
+    // Функция сброса сортировки
+    function resetSort() {
+      // Предположим, что исходный порядок совпадает с порядком в HTML
+      collectionContainer.innerHTML = '';
+      collectionCards.forEach(card => collectionContainer.appendChild(card));
+    }
+  </script>
+</body>
+</html>
+
