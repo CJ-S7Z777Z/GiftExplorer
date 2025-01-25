@@ -8,4 +8,5 @@ yandex_cloud:
   secret_access_key: "YCNyCzlGNBz1yP05vPM0SBB70ba4QB94T_iGbZlo"
   bucket_name: "ai-ru"
   gifts_folder: "gifts"
+  main_folder: ""  # Оставляем пустым для загрузки в корень
   json_folder: "json_data"
