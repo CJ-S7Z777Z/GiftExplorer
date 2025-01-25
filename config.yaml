@@ -4,8 +4,8 @@ collections:
     end_id: 2
 
 yandex_cloud:
-  access_key_id: "YCAJEEy-gpApVtzVYl6HdB-hC"
-  secret_access_key: "YCNyCzlGNBz1yP05vPM0SBB70ba4QB94T_iGbZlo"
+  access_key_id: "YCAJEKw4bew3ESTnRhzxndLO7"
+  secret_access_key: "YCOdAiH7-Xws76s9rUg-Q_r5tmavYJzAnxrlns3f"
   bucket_name: "ai-ru"
   gifts_folder: "gifts"
   main_folder: ""  # Оставляем пустым для загрузки в корень
