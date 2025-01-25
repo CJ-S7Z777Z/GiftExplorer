@@ -20,7 +20,6 @@ def load_config(config_path="config.yaml"):
     config['yandex_cloud']['secret_access_key'] = os.getenv('YC_SECRET_ACCESS_KEY', config['yandex_cloud']['secret_access_key'])
     config['yandex_cloud']['bucket_name'] = os.getenv('YC_BUCKET_NAME', config['yandex_cloud']['bucket_name'])
     config['yandex_cloud']['region'] = os.getenv('YC_REGION', config['yandex_cloud'].get('region', 'ru-central1'))
-    config['yandex_cloud']['main_folder'] = os.getenv('YC_MAIN_FOLDER', config['yandex_cloud'].get('main_folder', 'main_pages'))
     config['yandex_cloud']['gifts_folder'] = os.getenv('YC_GIFTS_FOLDER', config['yandex_cloud'].get('gifts_folder', 'gifts'))
     config['yandex_cloud']['json_folder'] = os.getenv('YC_JSON_FOLDER', config['yandex_cloud'].get('json_folder', 'json_data'))
     
