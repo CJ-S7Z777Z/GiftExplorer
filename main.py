@@ -179,6 +179,7 @@ def process_gift_data(gift_id, collection_name):
     return gift_data
 
 # Генерация главной страницы коллекции
+
 def generate_main_page(gift_data, collection_name, output_file):
     """Генерирует главную страницу со списком подарков."""
     html_template_start = f"""
@@ -332,8 +333,17 @@ def generate_main_page(gift_data, collection_name, output_file):
     </body>
     </html>
     """
+    # Фильтрация ключей: исключаем те, которые содержат '_hash' или равны 'hash'
+    filtered_gift_keys = [k for k in gift_data.keys() if not k.endswith('_hash') and k != 'hash']
+    
+    # Сортировка ключей
+    try:
+        sorted_gift_keys = sorted(filtered_gift_keys, key=lambda x: int(x.split('_')[-1]))
+    except ValueError as e:
+        print(f"Ошибка при сортировке ключей: {e}")
+        sorted_gift_keys = [k for k in filtered_gift_keys]  # Без сортировки
+    
     gift_cards_html = ""
-    sorted_gift_keys = sorted(gift_data.keys(), key=lambda x: int(x.split('_')[-1]))
     for index, key in enumerate(sorted_gift_keys):
         data = gift_data[key]
         if "error" in data:
@@ -364,6 +374,7 @@ def generate_main_page(gift_data, collection_name, output_file):
     with open(output_file, "w", encoding="utf-8") as f:
         f.write(full_html)
     print(f"Главная страница создана или обновлена: {output_file}")
+
 
 # Генерация отдельных страниц подарков
 def generate_gift_pages(gift_data, collection_name, yandex_client, bucket_name):
