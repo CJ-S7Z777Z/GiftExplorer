@@ -612,7 +612,8 @@ def generate_main_page_parallel(gift_data, collection_name, output_file, s3_clie
     """Генерирует главную страницу и загружает ее в Yandex Cloud Storage."""
     generate_main_page(gift_data, collection_name, output_file)
     # Загрузка главной страницы в YCS без папки
-    upload_file_to_ycs(s3_client, output_file, bucket_name, os.path.basename(output_file))
+    object_name = os.path.basename(output_file)  # Имя файла без пути
+    upload_file_to_ycs(s3_client, output_file, bucket_name, object_name)
 
 def generate_gift_page_parallel(gift_data, collection_name, json_folder, gifts_folder, s3_client, bucket_name, gifts_remote_folder, json_remote_folder):
     """Генерирует страницу подарка, сохраняет JSON и загружает их в YCS."""
@@ -690,7 +691,7 @@ def process_collection(collection, s3_client, bucket_name, main_folder, gifts_fo
     
     # Генерация и загрузка главной страницы
     main_page_file = f"{collection_name}.html"
-    generate_main_page_parallel(existing_data, collection_name, main_page_file, s3_client, bucket_name, main_folder)
+    generate_main_page_parallel(existing_data, collection_name, main_page_file, s3_client, bucket_name, main_folder='')
 
 def main():
     config = load_config()
