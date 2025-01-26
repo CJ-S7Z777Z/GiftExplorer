@@ -179,7 +179,6 @@ def process_gift_data(gift_id, collection_name):
     return gift_data
 
 # Генерация главной страницы коллекции
-
 def generate_main_page(gift_data, collection_name, output_file):
     """Генерирует главную страницу со списком подарков."""
     html_template_start = f"""
@@ -374,7 +373,6 @@ def generate_main_page(gift_data, collection_name, output_file):
     with open(output_file, "w", encoding="utf-8") as f:
         f.write(full_html)
     print(f"Главная страница создана или обновлена: {output_file}")
-
 
 # Генерация отдельных страниц подарков
 def generate_gift_pages(gift_data, collection_name, yandex_client, bucket_name):
