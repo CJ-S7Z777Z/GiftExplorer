@@ -2,52 +2,47 @@
 import requests
 from bs4 import BeautifulSoup
 import json
-import os
-import boto3
-from botocore.exceptions import NoCredentialsError, ClientError
-import yaml
-from concurrent.futures import ThreadPoolExecutor, as_completed
 import time
+import os
+import threading
+from concurrent.futures import ThreadPoolExecutor, as_completed
+import boto3
+from botocore.client import Config
+from hashlib import md5
 
-def load_config(config_path="config.yaml"):
-    """Загружает конфигурацию из YAML файла и переменных окружения."""
-    with open(config_path, "r", encoding="utf-8") as f:
-        config = yaml.safe_load(f)
+# Инициализация клиента Yandex Object Storage
+def init_yandex_client(service_account_key_path):
+    with open(service_account_key_path, 'r') as f:
+        credentials = json.load(f)
     
-    # Перезаписываем конфигурации Yandex Cloud переменными окружения для безопасности
-    config['yandex_cloud']['access_key_id'] = os.getenv('YC_ACCESS_KEY_ID', config['yandex_cloud']['access_key_id'])
-    config['yandex_cloud']['secret_access_key'] = os.getenv('YC_SECRET_ACCESS_KEY', config['yandex_cloud']['secret_access_key'])
-    config['yandex_cloud']['bucket_name'] = os.getenv('YC_BUCKET_NAME', config['yandex_cloud']['bucket_name'])
-    config['yandex_cloud']['region'] = os.getenv('YC_REGION', config['yandex_cloud'].get('region', 'ru-central1'))
-    config['yandex_cloud']['main_folder'] = os.getenv('YC_MAIN_FOLDER', config['yandex_cloud'].get('main_folder', ''))
-    config['yandex_cloud']['gifts_folder'] = os.getenv('YC_GIFTS_FOLDER', config['yandex_cloud'].get('gifts_folder', 'gifts'))
-    config['yandex_cloud']['json_folder'] = os.getenv('YC_JSON_FOLDER', config['yandex_cloud'].get('json_folder', 'json_data'))
-    
-    return config
-
-def initialize_s3_client(yc_config):
-    """Инициализирует клиента S3 для Yandex Cloud Storage."""
-    s3_client = boto3.client(
+    yandex_client = boto3.client(
         's3',
-        aws_access_key_id=yc_config['access_key_id'],
-        aws_secret_access_key=yc_config['secret_access_key'],
-        endpoint_url="https://storage.yandexcloud.net",  # Endpoint YCS
-        region_name=yc_config.get('region', 'ru-central1')
+        aws_access_key_id=credentials['key_id'],
+        aws_secret_access_key=credentials['key'],
+        endpoint_url='https://storage.yandexcloud.net',
+        config=Config(signature_version='s3v4'),
     )
-    return s3_client
+    return yandex_client
 
-def upload_file_to_ycs(s3_client, file_path, bucket_name, object_name):
-    """Загружает файл в Yandex Cloud Storage."""
+# Функция для загрузки файла в Yandex Object Storage
+def upload_to_yandex(yandex_client, bucket_name, file_path, object_key):
     try:
-        s3_client.upload_file(file_path, bucket_name, object_name)
-        print(f"Файл {file_path} успешно загружен в {bucket_name}/{object_name}.")
-    except FileNotFoundError:
-        print(f"Файл {file_path} не найден.")
-    except NoCredentialsError:
-        print("Не удалось найти учетные данные для Yandex Cloud Storage.")
-    except ClientError as e:
-        print(f"Ошибка при загрузке файла {file_path}: {e}")
+        yandex_client.upload_file(file_path, bucket_name, object_key)
+        print(f"Файл загружен: {object_key}")
+    except Exception as e:
+        print(f"Ошибка загрузки файла {object_key}: {e}")
 
+# Функция для получения хеша содержимого подарка
+def get_content_hash(gift_data):
+    hash_md5 = md5()
+    hash_md5.update(json.dumps(gift_data, sort_keys=True).encode('utf-8'))
+    return hash_md5.hexdigest()
+
+# Функция для проверки изменений
+def has_changed(old_hash, new_hash):
+    return old_hash != new_hash
+
+# Fetch and parse functions (оставляем без изменений)
 def fetch_gift_page(url):
     """Получает HTML-содержимое страницы подарка."""
     headers = {
@@ -87,7 +82,7 @@ def parse_gift_table(html_content):
                 owner_html = value.decode_contents()
                 soup_owner = BeautifulSoup(owner_html, 'html.parser')
                 img_tag = soup_owner.find('img')
-                data['Owner_avatar'] = img_tag['src'].strip() if img_tag and img_tag.has_attr('src') else "https://default-avatar.url/placeholder.png"
+                data['Owner_avatar'] = img_tag['src'].strip() if img_tag and img_tag.has_attr('src') else "https://i.getgems.io/pa4IG9_bFDXTUAXXqwq1M2OBNrplmfVaecyHGHoY3Po/rs:fill:512:512:1/g:ce/czM6Ly9nZXRnZW1zLXMzL3VzZXItbWVkaWEvZ2Vtcy80Ni53ZWJw"
                 span_tag = soup_owner.find('span')
                 data['Owner'] = span_tag.get_text(strip=True) if span_tag else "User"
             else:
@@ -121,7 +116,7 @@ def process_gift_data(gift_id, collection_name):
         print(f"Ошибка при получении данных с {fragment_url}: {e}")
         return {"error": f"Не удалось получить данные с fragment.com для {gift_id}"}
     except json.JSONDecodeError:
-        print(f"Ошибка при декодировании JSON с {fragment_url}")
+        print(f"Ошибка декодирования JSON с {fragment_url}")
         return {"error": f"Неверный формат JSON с fragment.com для {gift_id}"}
     
     # Инициализируем gift_data
@@ -159,7 +154,7 @@ def process_gift_data(gift_id, collection_name):
     if html_content:
         telegram_data = parse_gift_table(html_content)
         gift_data['Owner'] = telegram_data.get('Owner', gift_data.get('recipient_name', 'User'))
-        gift_data['Owner_avatar'] = telegram_data.get('Owner_avatar', "https://default-avatar.url/placeholder.png")
+        gift_data['Owner_avatar'] = telegram_data.get('Owner_avatar', "https://i.getgems.io/pa4IG9_bFDXTUAXXqwq1M2OBNrplmfVaecyHGHoY3Po/rs:fill:512:512:1/g:ce/czM6Ly9nZXRnZW1zLXMzL3VzZXItbWVkaWEvZ2Vtcy80Ni53ZWJw")
         
         # Интегрируем атрибуты из Telegram в gift_data['attributes']
         telegram_attributes = [v for k, v in telegram_data.items() if k not in ["Owner", "Owner_avatar"]]
@@ -180,13 +175,14 @@ def process_gift_data(gift_id, collection_name):
     else:
         # Если не удалось получить данные из Telegram, используем данные из fragment.com для владельца
         gift_data['Owner'] = gift_data.get('recipient_name', 'User')
-        gift_data['Owner_avatar'] = gift_data.get('Owner_avatar', "https://default-avatar.url/placeholder.png")
+        gift_data['Owner_avatar'] = gift_data.get('Owner_avatar', "https://i.getgems.io/pa4IG9_bFDXTUAXXqwq1M2OBNrplmfVaecyHGHoY3Po/rs:fill:512:512:1/g:ce/czM6Ly9nZXRnZW1zLXMzL3VzZXItbWVkaWEvZ2Vtcy80Ni53ZWJw")
     
     # Добавляем ссылку на страницу подарка
     gift_data['gift_page'] = f"gifts/{collection_name}_{gift_id}.html"
     
     return gift_data
 
+# Генерация главной страницы коллекции
 def generate_main_page(gift_data, collection_name, output_file):
     """Генерирует главную страницу со списком подарков."""
     html_template_start = f"""
@@ -393,330 +389,323 @@ def generate_main_page(gift_data, collection_name, output_file):
     full_html = html_template_start + gift_cards_html + html_template_end
     with open(output_file, "w", encoding="utf-8") as f:
         f.write(full_html)
-    print(f"Главная страница создана: {output_file}")
+    print(f"Главная страница создана или обновлена: {output_file}")
 
-def generate_gift_page(gift_data, collection_name, json_folder='json_data', gifts_folder='gifts'):
-    """Генерирует отдельную страницу для одного подарка и сохраняет JSON."""
-    gift_id = gift_data.get('gift_id')
-    if not gift_id:
-        print("Отсутствует ID подарка. Пропуск.")
-        return
-    
-    gift_page = gift_data.get('gift_page', '')
-    if not gift_page:
-        print("Отсутствует ссылка на страницу подарка. Пропуск.")
-        return
-    
-    output_file = os.path.join(gifts_folder, f"{collection_name}_{gift_id}.html")
-    name = gift_data.get('name', 'Подарок')
-    description = gift_data.get('description', '')
-    owner_name = gift_data.get('Owner', 'User')
-    owner_avatar = gift_data.get('Owner_avatar', 'https://default-avatar.url/placeholder.png')
-    image_url = gift_data.get('image', '')
-    lottie_url = gift_data.get('lottie', '')
-    attributes = gift_data.get('attributes', [])
-    
-    html_content = f"""
-    <!DOCTYPE html>
-    <html lang="ru">
-    <head>
-        <meta charset="UTF-8">
-        <title>{name}</title>
-        <style>
-            /* Ваши стили */
-            body {{
-                font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-                background-color: #121212;
-                color: #e0e0e0;
-                margin: 0;
-                padding: 20px;
-            }}
-            .container {{
-                max-width: 800px;
-                margin: auto;
-                background-color: #1f1f1f;
-                padding: 20px;
-                border-radius: 15px;
-                box-shadow: 0 4px 8px rgba(0,0,0,0.3);
-                text-align: center;
-                display: flex;
-                flex-direction: column;
-                align-items: center;
-            }}
-            .back-button {{
-                background-color: #ff562200;
-                color: #fff;
-                padding: 10px 20px;
-                border-radius: 8px;
-                cursor: pointer;
-                font-size: 16px;
-                margin-bottom: 20px;
-                transition: background-color 0.3s;
-                border: 2px solid #585858;
-                text-decoration: none;
-                align-self: flex-start;
-            }}
-            .back-button:hover {{
-                background-color: #000000;
-            }}
-            .gift-title {{
-                color: #ffffff;
-                font-size: 2em;
-                margin: 20px 0;
-            }}
-            .animation-container {{
-                width: 400px;
-                height: 400px;
-                margin: auto;
-                position: relative;
-                overflow: hidden;
-            }}
-            .animation-container::before {{
-                content: '';
-                position: absolute;
-                top: -20px;
-                left: -20px;
-                right: -20px;
-                bottom: -20px;
-                background: radial-gradient(circle, rgba(255,255,255,0.1), rgba(0,0,0,0));
-                filter: blur(20px);
-                z-index: -1;
-            }}
-            .owner-box {{
-                background-color: #ff562200;
-                color: #fff;
-                padding: 10px 15px;
-                border-radius: 8px;
-                margin-top: 20px;
-                border: 2px solid #585858;
-            }}
-            .owner {{
-                display: flex;
-                align-items: center;
-                justify-content: center;
-            }}
-            .owner img {{
-                width: 60px;
-                height: 60px;
-                border-radius: 50%;
-                object-fit: cover;
-                margin-right: 10px;
-            }}
-            .owner-name {{
-                font-size: 1.2em;
-                font-weight: bold;
-            }}
-            .description {{
-                margin-top: 20px;
-                font-size: 18px;
-                text-align: left;
-            }}
-            .attributes {{
-                display: flex;
-                justify-content: center;
-                flex-wrap: wrap;
-                margin-top: 20px;
-                margin-bottom: 20px;
-            }}
-            .attribute-box {{
-                background-color: #ff562200;
-                color: #fff;
-                padding: 10px 15px;
-                border-radius: 8px;
-                margin: 5px;
-                min-width: 100px;
-                text-align: center;
-                font-size: 16px;
-                border: 2px solid #585858;
-            }}
-            .attribute-box span {{
-                color: #FFD700; /* Золотой цвет для процентов */
-                font-weight: bold;
-            }}
-            @media (max-width: 600px) {{
+# Генерация отдельных страниц подарков
+def generate_gift_pages(gift_data, collection_name, yandex_client, bucket_name):
+    """Генерирует отдельные страницы для каждого подарка и загружает их на Yandex."""
+    for gift_id, data in gift_data.items():
+        if "error" in data:
+            print(f"Пропуск подарка {gift_id} из-за ошибки: {data['error']}")
+            continue
+        gift_page = data.get('gift_page', '')
+        if not gift_page:
+            continue
+        output_file = gift_page
+        name = data.get('name', 'Подарок')
+        description = data.get('description', '')
+        owner_name = data.get('Owner', 'User')
+        owner_avatar = data.get('Owner_avatar', 'https://i.getgems.io/pa4IG9_bFDXTUAXXqwq1M2OBNrplmfVaecyHGHoY3Po/rs:fill:512:512:1/g:ce/czM6Ly9nZXRnZW1zLXMzL3VzZXItbWVkaWEvZ2Vtcy80Ni53ZWJw')
+        image_url = data.get('image', '')
+        lottie_url = data.get('lottie', '')
+        attributes = data.get('attributes', [])
+        # back_button = '<a href="../index.html" class="back-button">Назад</a>'
+        html_content = f"""
+        <!DOCTYPE html>
+        <html lang="ru">
+        <head>
+            <meta charset="UTF-8">
+            <title>{name}</title>
+            <style>
+                /* Ваши стили */
+                body {{
+                    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+                    background-color: #121212;
+                    color: #e0e0e0;
+                    margin: 0;
+                    padding: 20px;
+                }}
+                .container {{
+                    max-width: 800px;
+                    margin: auto;
+                    background-color: #1f1f1f;
+                    padding: 20px;
+                    border-radius: 15px;
+                    box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+                    text-align: center;
+                    display: flex;
+                    flex-direction: column;
+                    align-items: center;
+                }}
+                .back-button {{
+                    background-color: #ff562200;
+                    color: #fff;
+                    padding: 10px 20px;
+                    border-radius: 8px;
+                    cursor: pointer;
+                    font-size: 16px;
+                    margin-bottom: 20px;
+                    transition: background-color 0.3s;
+                    border: 2px solid #585858;
+                    text-decoration: none;
+                    align-self: flex-start;
+                }}
+                .back-button:hover {{
+                    background-color: #000000;
+                }}
+                .gift-title {{
+                    color: #ffffff;
+                    font-size: 2em;
+                    margin: 20px 0;
+                }}
                 .animation-container {{
-                    width: 200px;
-                    height: 200px;
+                    width: 400px;
+                    height: 400px;
+                    margin: auto;
+                    position: relative;
+                    overflow: hidden;
+                }}
+                .animation-container::before {{
+                    content: '';
+                    position: absolute;
+                    top: -20px;
+                    left: -20px;
+                    right: -20px;
+                    bottom: -20px;
+                    background: radial-gradient(circle, rgba(255,255,255,0.1), rgba(0,0,0,0));
+                    filter: blur(20px);
+                    z-index: -1;
+                }}
+                .owner-box {{
+                    background-color: #ff562200;
+                    color: #fff;
+                    padding: 10px 15px;
+                    border-radius: 8px;
+                    margin-top: 20px;
+                    border: 2px solid #585858;
+                }}
+                .owner {{
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                }}
+                .owner img {{
+                    width: 60px;
+                    height: 60px;
+                    border-radius: 50%;
+                    object-fit: cover;
+                    margin-right: 10px;
+                }}
+                .owner-name {{
+                    font-size: 1.2em;
+                    font-weight: bold;
                 }}
                 .description {{
-                    font-size: 16px;
+                    margin-top: 20px;
+                    font-size: 18px;
+                    text-align: left;
+                }}
+                .attributes {{
+                    display: flex;
+                    justify-content: center;
+                    flex-wrap: wrap;
+                    margin-top: 20px;
+                    margin-bottom: 20px;
                 }}
                 .attribute-box {{
-                    font-size: 14px;
-                    min-width: 80px;
+                    background-color: #ff562200;
+                    color: #fff;
+                    padding: 10px 15px;
+                    border-radius: 8px;
+                    margin: 5px;
+                    min-width: 100px;
+                    text-align: center;
+                    font-size: 16px;
+                    border: 2px solid #585858;
                 }}
-            }}
-        </style>
-        <script src="https://cdnjs.cloudflare.com/ajax/libs/lottie-web/5.7.13/lottie.min.js"></script>
-    </head>
-    <body>
-        <div class="container">
-            <a href="../{collection_name}.html" class="back-button">Назад</a>
-            <h1 class="gift-title">{name}</h1>
-            <div id="animationContainer" class="animation-container"></div>
-            <p class="description">{description}</p>
-            <div class="owner-box">
-                <div class="owner">
-                    <img src="{owner_avatar}" alt="Аватар">
-                    <div class="owner-name">{owner_name}</div>
+                .attribute-box span {{
+                    color: #FFD700; /* Золотой цвет для процентов */
+                    font-weight: bold;
+                }}
+                @media (max-width: 600px) {{
+                    .animation-container {{
+                        width: 200px;
+                        height: 200px;
+                    }}
+                    .description {{
+                        font-size: 16px;
+                    }}
+                    .attribute-box {{
+                        font-size: 14px;
+                        min-width: 80px;
+                    }}
+                }}
+            </style>
+            <script src="https://cdnjs.cloudflare.com/ajax/libs/lottie-web/5.7.13/lottie.min.js"></script>
+        </head>
+        <body>
+            <div class="container">
+                <a href="../{collection_name}.html" class="back-button">Назад</a>
+                <h1 class="gift-title">{name}</h1>
+                <div id="animationContainer" class="animation-container"></div>
+                <p class="description">{description}</p>
+                <div class="owner-box">
+                    <div class="owner">
+                        <img src="{owner_avatar}" alt="Аватар">
+                        <div class="owner-name">{owner_name}</div>
+                    </div>
+                </div>
+                <div class="attributes">
+        """
+        # Добавляем атрибуты
+        for attr in attributes:
+            trait_type = attr.get('trait_type', '')
+            value = attr.get('value', '')
+            percent = attr.get('percent', None)
+            if percent is not None and percent != 0.0:
+                html_content += f"""
+                <div class="attribute-box">
+                    <strong>{trait_type}</strong><br>{value}<br><span>{percent}%</span>
+                </div>
+                """
+            else:
+                html_content += f"""
+                <div class="attribute-box">
+                    <strong>{trait_type}</strong><br>{value}
+                </div>
+                """
+    
+        html_content += f"""
                 </div>
             </div>
-            <div class="attributes">
-    """
-    # Добавляем атрибуты
-    for attr in attributes:
-        trait_type = attr.get('trait_type', '')
-        value = attr.get('value', '')
-        percent = attr.get('percent', None)
-        if percent is not None and percent != 0.0:
-            html_content += f"""
-            <div class="attribute-box">
-                <strong>{trait_type}</strong><br>{value}<br><span>{percent}%</span>
-            </div>
-            """
-        else:
-            html_content += f"""
-            <div class="attribute-box">
-                <strong>{trait_type}</strong><br>{value}
-            </div>
-            """
-    
-    html_content += f"""
-            </div>
-        </div>
-        <script>
-            var animation = lottie.loadAnimation({{
-                container: document.getElementById('animationContainer'),
-                renderer: 'svg',
-                loop: true,
-                autoplay: true,
-                path: '{lottie_url}'
-            }});
-        </script>
-    </body>
-    </html>
-    """
-    with open(output_file, "w", encoding="utf-8") as f:
-        f.write(html_content)
-    print(f"Страница подарка создана или обновлена: {output_file}")
-    
-    # Сохранение JSON-файла
-    json_data = gift_data.copy()
-    json_data.pop('gift_page', None)  # Исключаем ссылку на страницу из JSON
-    json_output_file = os.path.join(json_folder, f"{collection_name}_{gift_id}.json")
-    with open(json_output_file, "w", encoding="utf-8") as jf:
-        json.dump(json_data, jf, ensure_ascii=False, indent=4)
-    print(f"JSON-файл сохранен: {json_output_file}")
-
-def generate_main_page_parallel(gift_data, collection_name, output_file, s3_client, bucket_name, main_folder):
-    """Генерирует главную страницу и загружает ее в Yandex Cloud Storage."""
-    generate_main_page(gift_data, collection_name, output_file)
-    # Загрузка главной страницы в YCS без папки
-    object_name = os.path.basename(output_file)  # Имя файла без пути
-    upload_file_to_ycs(s3_client, output_file, bucket_name, object_name)
-
-def generate_gift_page_parallel(gift_data, collection_name, json_folder, gifts_folder, s3_client, bucket_name, gifts_remote_folder, json_remote_folder):
-    """Генерирует страницу подарка, сохраняет JSON и загружает их в YCS."""
-    generate_gift_page(gift_data, collection_name, json_folder, gifts_folder)
-    gift_id = gift_data.get('gift_id')
-    if not gift_id:
-        return
-    gift_page_filename = f"{collection_name}_{gift_id}.html"
-    gift_page_path = os.path.join(gifts_folder, gift_page_filename)
-    json_filename = f"{collection_name}_{gift_id}.json"
-    json_path = os.path.join(json_folder, json_filename)
-    
-    # Загрузка HTML страницы
-    upload_file_to_ycs(s3_client, gift_page_path, bucket_name, f"{gifts_remote_folder}/{gift_page_filename}")
-    # Загрузка JSON файла
-    upload_file_to_ycs(s3_client, json_path, bucket_name, f"{json_remote_folder}/{json_filename}")
-
-def process_collection(collection, s3_client, bucket_name, main_folder, gifts_folder, json_folder, max_workers=100):
-    """Обрабатывает всю коллекцию с использованием многопоточности."""
-    collection_name = collection['name']
-    start_id = collection['start_id']
-    end_id = collection['end_id']
-    data_file = os.path.join(json_folder, f"{collection_name}_gift_data.json")
-    
-    # Загрузка существующих данных, если есть
-    if os.path.exists(data_file):
-        with open(data_file, "r", encoding="utf-8") as f:
-            try:
-                existing_data = json.load(f)
-                print(f"Загружено {len(existing_data)} подарков из {data_file}.")
-            except json.JSONDecodeError:
-                print(f"Ошибка декодирования JSON из {data_file}. Создание нового.")
-                existing_data = {}
-    else:
-        print(f"Файл данных {data_file} не найден. Начинается создание нового.")
-        existing_data = {}
-    
-    # Подготовка списка задач
-    tasks = []
-    with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        future_to_gift_id = {}
-        for gift_id in range(start_id, end_id + 1):
-            key = f"{collection_name}_{gift_id}"
-            future = executor.submit(process_gift_data, gift_id, collection_name)
-            future_to_gift_id[future] = key
+            <script>
+                var animation = lottie.loadAnimation({{
+                    container: document.getElementById('animationContainer'),
+                    renderer: 'svg',
+                    loop: true,
+                    autoplay: true,
+                    path: '{lottie_url}'
+                }});
+            </script>
+        </body>
+        </html>
+        """
+        with open(output_file, "w", encoding="utf-8") as f:
+            f.write(html_content)
+        print(f"Страница подарка создана или обновлена: {output_file}")
         
-        for future in as_completed(future_to_gift_id):
-            key = future_to_gift_id[future]
-            try:
-                gift_data = future.result()
-                if gift_data and "error" not in gift_data:
-                    gift_data['gift_id'] = int(key.split('_')[-1])
-                    existing_data[key] = gift_data
-                    # Генерация и загрузка страницы и JSON
-                    executor.submit(
-                        generate_gift_page_parallel,
-                        gift_data,
-                        collection_name,
-                        json_folder,
-                        gifts_folder,
-                        s3_client,
-                        bucket_name,
-                        'gifts',   # Папка в YCS для подарков
-                        'json_data'  # Папка в YCS для JSON
-                    )
-                else:
-                    print(f"Ошибка при парсинге подарка {key}: {gift_data.get('error', 'Неизвестная ошибка')}")
-            except Exception as exc:
-                print(f"Подарок {key} сгенерировал исключение: {exc}")
-    
-    # Сохранение обновленных данных
-    with open(data_file, "w", encoding="utf-8") as f:
-        json.dump(existing_data, f, ensure_ascii=False, indent=4)
-    print(f"Данные сохранены в {data_file}.")
-    
-    # Генерация и загрузка главной страницы
-    main_page_file = f"{collection_name}.html"
-    generate_main_page_parallel(existing_data, collection_name, main_page_file, s3_client, bucket_name, main_folder='')
+        # Загрузка файла на Yandex Object Storage
+        upload_to_yandex(yandex_client, bucket_name, output_file, gift_page)
+        
+        # Удаление локального файла после загрузки (опционально)
+        os.remove(output_file)
+
+# Генерация JSON-файлов для будущего использования
+def generate_json_files(gift_data, collection_name, yandex_client, bucket_name):
+    """Сохраняет данные подарков в JSON-файлы и загружает их на Yandex."""
+    json_output_dir = 'json'
+    os.makedirs(json_output_dir, exist_ok=True)
+    for gift_id, data in gift_data.items():
+        if "error" in data:
+            continue
+        json_file = os.path.join(json_output_dir, f"{collection_name}_{gift_id}.json")
+        with open(json_file, 'w', encoding='utf-8') as f:
+            json.dump(data, f, ensure_ascii=False, indent=4)
+        # Загрузка JSON-файла на Yandex
+        object_key = f"json/{collection_name}_{gift_id}.json"
+        upload_to_yandex(yandex_client, bucket_name, json_file, object_key)
+        # Удаление локального JSON-файла после загрузки (опционально)
+        os.remove(json_file)
 
 def main():
-    config = load_config()
-    yc_config = config['yandex_cloud']
-    s3_client = initialize_s3_client(yc_config)
-    bucket_name = yc_config['bucket_name']
-    main_folder = yc_config.get('main_folder', '')
-    gifts_folder = yc_config.get('gifts_folder', 'gifts')
-    json_folder = yc_config.get('json_folder', 'json_data')
+    # Загрузка конфигурации
+    with open('config.json', 'r', encoding='utf-8') as f:
+        config = json.load(f)
     
-    # Создание локальных папок, если они не существуют
-    os.makedirs(gifts_folder, exist_ok=True)
-    os.makedirs(json_folder, exist_ok=True)
+    collections = config.get('collections', [])
+    yandex_config = config.get('yandex', {})
+    service_account_key_path = yandex_config.get('service_account_key_path')
+    bucket_name = yandex_config.get('bucket_name')
+    interval_seconds = config.get('interval_seconds', 60)
+    thread_workers = config.get('thread_workers', 20)
     
-    collections = config['collections']
+    # Инициализируем Yandex клиент
+    yandex_client = init_yandex_client(service_account_key_path)
     
-    for collection in collections:
-        print(f"Начинаем обработку коллекции {collection['name']}...")
-        start_time = time.time()
-        process_collection(collection, s3_client, bucket_name, main_folder, gifts_folder, json_folder, max_workers=100)
-        end_time = time.time()
-        elapsed = end_time - start_time
-        print(f"Обработка коллекции {collection['name']} завершена за {elapsed/60:.2f} минут.")
+    # Загрузка или инициализация данных
+    data_file = "all_collections_data.json"
+    if os.path.exists(data_file):
+        with open(data_file, "r", encoding="utf-8") as f:
+            all_data = json.load(f)
+        print(f"Загружено данные из {data_file}.")
+    else:
+        all_data = {}
+        print(f"Файл данных {data_file} не найден. Начинаем с пустого набора данных.")
     
-    print("Все коллекции обработаны.")
+    while True:
+        print("\nНачинается цикл проверки и парсинга коллекций...")
+        with ThreadPoolExecutor(max_workers=thread_workers) as executor:
+            future_to_gift = {}
+            for collection in collections:
+                collection_name = collection.get('name')
+                start_id = collection.get('start_id')
+                end_id = collection.get('end_id')
+                
+                # Создание ключа для коллекции
+                collection_key = collection_name
+                
+                # Инициализация данных коллекции если необходимо
+                if collection_key not in all_data:
+                    all_data[collection_key] = {}
+                
+                for gift_id in range(start_id, end_id + 1):
+                    key = f"{collection_name}_{gift_id}"
+                    future = executor.submit(process_gift_data, gift_id, collection_name)
+                    future_to_gift[future] = (collection_key, key)
+            
+            for future in as_completed(future_to_gift):
+                collection_key, key = future_to_gift[future]
+                try:
+                    gift_data = future.result()
+                    if gift_data and "error" not in gift_data:
+                        new_hash = get_content_hash(gift_data)
+                        old_hash = all_data[collection_key].get(f"{key}_hash", "")
+                        if has_changed(old_hash, new_hash):
+                            all_data[collection_key][key] = gift_data
+                            all_data[collection_key][f"{key}_hash"] = new_hash
+                            print(f"Обновление подарка: {key}")
+                        else:
+                            print(f"Подарок не изменился: {key}")
+                    else:
+                        print(f"Ошибка при получении данных для {key}: {gift_data.get('error', 'Неизвестная ошибка')}")
+                except Exception as e:
+                    print(f"Исключение при обработке подарка {key}: {e}")
+        
+        # Сохранение обновлённых данных
+        with open(data_file, "w", encoding="utf-8") as f:
+            json.dump(all_data, f, ensure_ascii=False, indent=4)
+        print(f"Данные сохранены в {data_file}.")
+        
+        # Генерация страниц и загрузка на Yandex
+        for collection in collections:
+            collection_name = collection.get('name')
+            collection_key = collection_name
+            gift_data = all_data.get(collection_key, {})
+            # Генерация главной страницы
+            main_page_file = f"{collection_name}.html"
+            generate_main_page(gift_data, collection_name, main_page_file)
+            # Загрузка главной страницы на Yandex
+            upload_to_yandex(yandex_client, bucket_name, main_page_file, f"{collection_name}.html")
+            os.remove(main_page_file)  # Удаление локального файла после загрузки
+            
+            # Генерация страниц подарков
+            generate_gift_pages(gift_data, collection_name, yandex_client, bucket_name)
+            
+            # Генерация JSON-файлов
+            generate_json_files(gift_data, collection_name, yandex_client, bucket_name)
+        
+        print(f"Ожидание {interval_seconds} секунд до следующей проверки...")
+        time.sleep(interval_seconds)
 
 if __name__ == "__main__":
     main()
