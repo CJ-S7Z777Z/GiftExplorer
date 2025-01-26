@@ -4,22 +4,18 @@ from bs4 import BeautifulSoup
 import json
 import time
 import os
-import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import boto3
 from botocore.client import Config
 from hashlib import md5
 
 # Инициализация клиента Yandex Object Storage
-def init_yandex_client(service_account_key_path):
-    with open(service_account_key_path, 'r') as f:
-        credentials = json.load(f)
-    
+def init_yandex_client(yandex_config):
     yandex_client = boto3.client(
         's3',
-        aws_access_key_id=credentials['key_id'],
-        aws_secret_access_key=credentials['key'],
-        endpoint_url='https://storage.yandexcloud.net',
+        aws_access_key_id=yandex_config['id'],
+        aws_secret_access_key=yandex_config['key'],
+        endpoint_url='https://storage.yandexcloud.net',  # Endpoint для Yandex Object Storage
         config=Config(signature_version='s3v4'),
     )
     return yandex_client
@@ -42,7 +38,7 @@ def get_content_hash(gift_data):
 def has_changed(old_hash, new_hash):
     return old_hash != new_hash
 
-# Fetch and parse functions (оставляем без изменений)
+# Функции извлечения и парсинга данных
 def fetch_gift_page(url):
     """Получает HTML-содержимое страницы подарка."""
     headers = {
@@ -213,24 +209,6 @@ def generate_main_page(gift_data, collection_name, output_file):
                 font-size: 2em;
                 letter-spacing: 2px;
             }}
-            .back-button {{
-                position: absolute;
-                left: 20px;
-                top: 20px;
-                background-color: #ff562200;
-                color: #fff;
-                padding: 10px 20px;
-                border-radius: 8px;
-                cursor: pointer;
-                font-size: 16px;
-                transition: background-color 0.3s;
-                border: 2px solid #585858;
-                text-decoration: none;
-            }}
-            
-            .back-button:hover {{
-                background-color: #000000; /* Цвет кнопки при наведении */
-            }}
             .controls {{
                 display: flex;
                 justify-content: center;
@@ -283,18 +261,14 @@ def generate_main_page(gift_data, collection_name, output_file):
                     align-items: center;
                 }}
                 .gift-grid {{
-                display: grid;
-                grid-template-columns: repeat(2, minmax(100px, 1fr)); /* Адаптивные колонки */
-                gap: 25px;
-                padding: 20px;
-            }}
+                    grid-template-columns: repeat(2, minmax(100px, 1fr)); /* Адаптивные колонки */
+                }}
             }}
         </style>
     </head>
     <body>
     <div class="header">
         <h1>{collection_name}</h1>
-        <a href="index.html" class="back-button">Назад</a> <!-- Кнопка "Назад" -->
     </div>
     <div class="controls">
         <input type="text" id="searchInput" placeholder="Поиск по номеру подарка (например, {collection_name}-1)">
@@ -624,13 +598,19 @@ def main():
     
     collections = config.get('collections', [])
     yandex_config = config.get('yandex', {})
-    service_account_key_path = yandex_config.get('service_account_key_path')
+    yandex_id = yandex_config.get('id')
+    yandex_key = yandex_config.get('key')
     bucket_name = yandex_config.get('bucket_name')
     interval_seconds = config.get('interval_seconds', 60)
     thread_workers = config.get('thread_workers', 20)
     
+    # Проверка наличия необходимых параметров
+    if not all([yandex_id, yandex_key, bucket_name]):
+        print("Отсутствуют необходимые параметры для Yandex Cloud в config.json.")
+        return
+    
     # Инициализируем Yandex клиент
-    yandex_client = init_yandex_client(service_account_key_path)
+    yandex_client = init_yandex_client(yandex_config)
     
     # Загрузка или инициализация данных
     data_file = "all_collections_data.json"
