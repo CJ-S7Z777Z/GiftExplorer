@@ -1,0 +1,16 @@
+{
+    "collections": [
+        {
+            "name": "HomemadeCake",
+            "start_id": 1,
+            "end_id": 5
+        }
+    ],
+    "yandex": {
+        "id": "YCAJEr5i8dEeEp9oI1PsLhCUc",
+        "key": "YCPSDsoUqDN7X1kB8-N8UbCQqbnIUF9FcYiB2XJT",
+        "bucket_name": "ai-ru"
+    },
+    "interval_seconds": 10,  // Интервал проверки изменений
+    "thread_workers": 5  // Количество параллельных потоков для парсинга
+}
