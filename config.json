@@ -11,6 +11,6 @@
         "key": "YCPSDsoUqDN7X1kB8-N8UbCQqbnIUF9FcYiB2XJT",
         "bucket_name": "ai-ru"
     },
-    "interval_seconds": 10,  // Интервал проверки изменений
-    "thread_workers": 5  // Количество параллельных потоков для парсинга
+    "interval_seconds": 10,
+    "thread_workers": 5  
 }
